@@ -185,16 +185,6 @@ export function nodeAndOffsetInLineMap(map, ch, bias) {
   return {node: node, start: start, end: end, collapse: collapse, coverStart: mStart, coverEnd: mEnd}
 }
 
-function getUsefulRect(rects, bias) {
-  let rect = nullRect
-  if (bias == "left") for (let i = 0; i < rects.length; i++) {
-    if ((rect = rects[i]).left != rect.right) break
-  } else for (let i = rects.length - 1; i >= 0; i--) {
-    if ((rect = rects[i]).left != rect.right) break
-  }
-  return rect
-}
-
 function measureCharInner(cm, prepared, ch, bias) {
   let place = nodeAndOffsetInLineMap(prepared.map, ch, bias)
   let node = place.node, start = place.start, end = place.end, collapse = place.collapse
@@ -204,10 +194,17 @@ function measureCharInner(cm, prepared, ch, bias) {
     for (let i = 0; i < 4; i++) { // Retry a maximum of 4 times when nonsense rectangles are returned
       while (start && isExtendingChar(prepared.line.text.charAt(place.coverStart + start))) --start
       while (place.coverStart + end < place.coverEnd && isExtendingChar(prepared.line.text.charAt(place.coverStart + end))) ++end
-      if (ie && ie_version < 9 && start == 0 && end == place.coverEnd - place.coverStart)
-        rect = node.parentNode.getBoundingClientRect()
-      else
-        rect = getUsefulRect(range(node, start, end).getClientRects(), bias)
+      if (ie && ie_version < 9 && start == 0 && end == place.coverEnd - place.coverStart) {
+        rect = node.parentNode.getBoundingClientRect();
+      } else if (ie && cm.options.lineWrapping) {
+        var rects = range(node, start, end).getClientRects();
+        if (rects.length) 
+          rect = rects[bias == "right" ? rects.length - 1 : 0];
+        else
+          rect = nullRect;
+      } else {
+        rect = range(node, start, end).getBoundingClientRect() || nullRect;
+      }
       if (rect.left || rect.right || start == 0) break
       end = start
       start = start - 1
